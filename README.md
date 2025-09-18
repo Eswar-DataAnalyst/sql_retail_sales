@@ -52,150 +52,227 @@ Create Table
 - **Null Value Check**: Check for any null values in the dataset and delete records with missing data.
 
 ```sql
-SELECT COUNT(*) FROM retail_sales;
-SELECT COUNT(DISTINCT customer_id) FROM retail_sales;
-SELECT DISTINCT category FROM retail_sales;
+select count(*)
+   from retail_sales;
 
-SELECT * FROM retail_sales
-WHERE 
-    sale_date IS NULL OR sale_time IS NULL OR customer_id IS NULL OR 
-    gender IS NULL OR age IS NULL OR category IS NULL OR 
-    quantity IS NULL OR price_per_unit IS NULL OR cogs IS NULL;
-
-DELETE FROM retail_sales
-WHERE 
-    sale_date IS NULL OR sale_time IS NULL OR customer_id IS NULL OR 
-    gender IS NULL OR age IS NULL OR category IS NULL OR 
-    quantity IS NULL OR price_per_unit IS NULL OR cogs IS NULL;
+select * from retail_sales
+where
+    transaction_id is null
+    or
+    transaction_date is null
+    or
+	transaction_time is null
+    or
+    customer_id is null
+    or
+    product_id is null
+    or
+    product_category is null
+    or
+    quantity is null
+    or
+    price is null
+    or
+    total_amount is null
+    or
+    payment_method is null
+    or
+    store_location is null;
 ```
 
 ### 3. Data Analysis & Findings
 
 The following SQL queries were developed to answer specific business questions:
 
-1. **Write a SQL query to retrieve all columns for sales made on '2022-11-05**:
+1. **Calculate a rolling total of sales (total_amount) per product_category ordered by transaction_date**:
 ```sql
-SELECT *
-FROM retail_sales
-WHERE sale_date = '2022-11-05';
+select 
+     transaction_Id,
+     transaction_date,
+     product_Category,
+     total_amount,
+     sum(total_amount)over(partition by product_Category order by transaction_date,transaction_id 
+      ) as rolling_total
+from retail_sales
+order by product_category,transaction_date;
 ```
 
-2. **Write a SQL query to retrieve all transactions where the category is 'Clothing' and the quantity sold is more than 4 in the month of Nov-2022**:
+2. **Find the top 3 transactions by total_amount for each store_location**:
 ```sql
-SELECT 
-  *
-FROM retail_sales
-WHERE 
-    category = 'Clothing'
-    AND 
-    TO_CHAR(sale_date, 'YYYY-MM') = '2022-11'
-    AND
-    quantity >= 4
-```
-
-3. **Write a SQL query to calculate the total sales (total_sale) for each category.**:
-```sql
-SELECT 
-    category,
-    SUM(total_sale) as net_sale,
-    COUNT(*) as total_orders
-FROM retail_sales
-GROUP BY 1
-```
-
-4. **Write a SQL query to find the average age of customers who purchased items from the 'Beauty' category.**:
-```sql
-SELECT
-    ROUND(AVG(age), 2) as avg_age
-FROM retail_sales
-WHERE category = 'Beauty'
-```
-
-5. **Write a SQL query to find all transactions where the total_sale is greater than 1000.**:
-```sql
-SELECT * FROM retail_sales
-WHERE total_sale > 1000
-```
-
-6. **Write a SQL query to find the total number of transactions (transaction_id) made by each gender in each category.**:
-```sql
-SELECT 
-    category,
-    gender,
-    COUNT(*) as total_trans
-FROM retail_sales
-GROUP 
-    BY 
-    category,
-    gender
-ORDER BY 1
-```
-
-7. **Write a SQL query to calculate the average sale for each month. Find out best selling month in each year**:
-```sql
-SELECT 
-       year,
-       month,
-    avg_sale
-FROM 
-(    
-SELECT 
-    EXTRACT(YEAR FROM sale_date) as year,
-    EXTRACT(MONTH FROM sale_date) as month,
-    AVG(total_sale) as avg_sale,
-    RANK() OVER(PARTITION BY EXTRACT(YEAR FROM sale_date) ORDER BY AVG(total_sale) DESC) as rank
-FROM retail_sales
-GROUP BY 1, 2
-) as t1
-WHERE rank = 1
-```
-
-8. **Write a SQL query to find the top 5 customers based on the highest total sales **:
-```sql
-SELECT 
+select
+	transaction_id,
+    store_location,
     customer_id,
-    SUM(total_sale) as total_sales
-FROM retail_sales
-GROUP BY 1
-ORDER BY 2 DESC
-LIMIT 5
+    product_category,
+    total_amount
+from(
+	SELECT
+	transaction_id,
+    store_location,
+    customer_id,
+    product_category,
+    total_amount,
+    row_number()OVER(
+    partition by store_location
+    order by total_amount desc
+    ) as rn
+from retail_sales
+) as ranked_sales
+where rn <=3
+order by store_location,rn
 ```
 
-9. **Write a SQL query to find the number of unique customers who purchased items from each category.**:
+3. **List all transactions where the total_amount is greater than the average total_amount of the dataset.**:
 ```sql
-SELECT 
-    category,    
-    COUNT(DISTINCT customer_id) as cnt_unique_cs
-FROM retail_sales
-GROUP BY category
+select*
+from retail_sales
+where total_amount > (select
+                      avg(total_amount)
+                      from retail_sales);
 ```
 
-10. **Write a SQL query to create each shift and number of orders (Example Morning <12, Afternoon Between 12 & 17, Evening >17)**:
+4. **Show product categories with total sales > 10,000.**:
 ```sql
-WITH hourly_sale
-AS
-(
-SELECT *,
-    CASE
-        WHEN EXTRACT(HOUR FROM sale_time) < 12 THEN 'Morning'
-        WHEN EXTRACT(HOUR FROM sale_time) BETWEEN 12 AND 17 THEN 'Afternoon'
-        ELSE 'Evening'
-    END as shift
-FROM retail_sales
-)
+select
+	product_category,
+    sum(total_amount) as total_sales
+from retail_sales
+group by product_category
+having sum(total_amount) > 10000;
+```
+
+5. **Create a CTE that calculates monthly sales and then select the month with the highest sales**:
+```sql
+with monthly_sales as (
+	select
+    date_format(transaction_date,'%Y-%m')as month,
+    sum(total_amount) as total_sales
+from retail_sales
+	group by date_format(transaction_date,'%Y-%m')
+    )
+select month,total_sales
+ from monthly_Sales
+ order by total_sales desc
+ limit 1;
+```
+
+6. **Add a Column sales_type in query - Keep'HIGH' If total amount > 500.'medium'if total amount is between 200 and 500,'low' if total amount < 500.**:
+```sql
+select 
+	case 
+		when total_amount > 500 then 'HIGH'
+        When total_amount between 200 and 500 then 'MEDIUM'
+        else 'LOW'
+	END AS sales_type,
+count(*) as transaction_count
+from retail_sales
+	group by 
+        case 
+			when total_amount > 500 then 'HIGH'
+			When total_amount between 200 and 500 then 'MEDIUM'
+			else 'LOW'
+	    end;
+```
+
+7. **Categorize transactions by time: 'Morning' for 06:00:00–11:59:59,'Afternoon' for 12:00:00–17:59:59,'Evening' for 18:00:00–21:59:59,'Night' for 22:00:00–05:59:59**:
+```sql
+select 
+	transaction_id,
+    transaction_time,
+	case
+		when time(transaction_time) between '06:00:00' and'11:59:59' then 'MORNING'
+        When time(transaction_time) between '12:00:00' and'17:59:59' then 'AFTERNOON'
+        WHEN Time(transaction_time) between '18:00:00' and'21:59:59' then 'EVENING'
+        else 'NIGHT'
+    End AS Time_Of_The_Day
+from retail_sales;
+```
+
+8. **For each transaction, display transaction_id and the average total_amount of all transactions in the same store_location.**:
+```sql
 SELECT 
-    shift,
-    COUNT(*) as total_orders    
-FROM hourly_sale
-GROUP BY shift
+    transaction_id,
+    store_location,
+    total_amount,
+    AVG(total_amount) OVER (PARTITION BY store_location) AS avg_store_sales
+FROM retail_sales;
+```
+
+9. **9.Show the store with the highest average transaction amount.**:
+```sql
+select
+	store_location,avg_transaction
+from(
+     select
+		store_location,
+        avg(total_amount) as avg_transaction
+	 from retail_sales
+     group by store_location
+     )t
+order by avg_transaction desc
+limit 1;
+```
+
+10. **10.Using a CTE for monthly totals, join it with store_locations to see which store contributes most each month.**:
+```sql
+With monthly_Store_sales as (
+	select 
+		date_format(transaction_date,'%Y-%m') as Month,
+        store_location,
+        sum(total_amount)as total_sales
+	from retail_sales
+    group by date_format(transaction_date,'%Y-%m'),store_location
+    )
+select m.month,
+	   m.store_location,
+       m.total_sales
+from(
+	select
+		month,
+        store_location,
+        total_sales,
+        rank()over(partition by store_location order by total_sales desc) as sales_rank
+	from monthly_Store_sales
+    )m
+where m.sales_rank =1;
+```
+11. **11.Show each store's sales as a percentage of total sales.**
+```sql
+select
+	store_location,
+    sum(total_amount) as store_sales,
+    round(sum(total_amount)/(select sum(total_amount) from retail_sales) *100,2) as sales_percentage 
+from retail_sales
+group by store_location
+order by sales_percentage desc;
+```
+12. **12.Retrieve transactions where quantity > average quantity for that product category.**
+```sql
+select *
+ from (
+	select*,
+    avg(quantity)over(partition by product_category)as avg_quantity
+    from retail_sales
+    )t
+    where quantity > avg_quantity;
+```
+13. **Find peak hour of transactions (hour with most transactions) across all days.**
+```sql
+select 
+	hour(transaction_time) as transaction_hour,
+    count(*) as transaction_count
+from retail_sales
+group by hour(transaction_time)
+order by transaction_count desc
+limit 1;
 ```
 
 ## Findings
 
-- **Customer Demographics**: The dataset includes customers from various age groups, with sales distributed across different categories such as Clothing and Beauty.
-- **High-Value Transactions**: Several transactions had a total sale amount greater than 1000, indicating premium purchases.
-- **Sales Trends**: Monthly analysis shows variations in sales, helping identify peak seasons.
-- **Customer Insights**: The analysis identifies the top-spending customers and the most popular product categories.
+--**Electronics, Clothing, and Home Appliances are the top-selling categories.
+--**The store located in Los Angeles has highest average transaction amount.
+--**Morning is the busiest time, with peak hour around 11:00am.
+--**July month is having the highest sales.
 
 ## Reports
 
@@ -205,26 +282,6 @@ GROUP BY shift
 
 ## Conclusion
 
-This project serves as a comprehensive introduction to SQL for data analysts, covering database setup, data cleaning, exploratory data analysis, and business-driven SQL queries. The findings from this project can help drive business decisions by understanding sales patterns, customer behavior, and product performance.
+The analysis highlights that top-selling categories and high-value transactions are key revenue drivers. Peak transaction hours and store performance insights can guide staffing, promotions, and inventory planning. Overall, data-driven decisions based on these insights can optimize sales and operational efficiency.
 
-## How to Use
 
-1. **Clone the Repository**: Clone this project repository from GitHub.
-2. **Set Up the Database**: Run the SQL scripts provided in the `database_setup.sql` file to create and populate the database.
-3. **Run the Queries**: Use the SQL queries provided in the `analysis_queries.sql` file to perform your analysis.
-4. **Explore and Modify**: Feel free to modify the queries to explore different aspects of the dataset or answer additional business questions.
-
-## Author - Zero Analyst
-
-This project is part of my portfolio, showcasing the SQL skills essential for data analyst roles. If you have any questions, feedback, or would like to collaborate, feel free to get in touch!
-
-### Stay Updated and Join the Community
-
-For more content on SQL, data analysis, and other data-related topics, make sure to follow me on social media and join our community:
-
-- **YouTube**: [Subscribe to my channel for tutorials and insights](https://www.youtube.com/@zero_analyst)
-- **Instagram**: [Follow me for daily tips and updates](https://www.instagram.com/zero_analyst/)
-- **LinkedIn**: [Connect with me professionally](https://www.linkedin.com/in/najirr)
-- **Discord**: [Join our community to learn and grow together](https://discord.gg/36h5f2Z5PK)
-
-Thank you for your support, and I look forward to connecting with you!
