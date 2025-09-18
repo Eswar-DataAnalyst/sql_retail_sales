@@ -266,6 +266,16 @@ group by hour(transaction_time)
 order by transaction_count desc
 limit 1;
 ```
+##Insights
+
+--Category Margins
+High-value categories such as Electronics produce high revenue, but medium-value categories (Clothing, Home Appliances) provide stable sales volume. The balancing act between these assures stable profitability.
+
+--Store Efficiency
+A few stores generate more than 60% of sales, and there are many underperforming stores. Redirecting marketing or resources to top stores can generate higher ROI.
+
+--Customer Purchase Behavior
+The majority of revenues are gained from purchases over $500, although they are less transactions. Marketing high-spending customers through loyalty plans can increase profitability considerably
 
 ## Findings
 
