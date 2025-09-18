@@ -49,7 +49,6 @@ where
     or
     store_location is null;
 
--- Data Exploration
 
 -- Calculate a rolling total of sales (total_amount) per product_category ordered by transaction_date.
 
